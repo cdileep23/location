@@ -430,8 +430,9 @@ const MarkersMap = () => {
 
         {/* Footer */}
         <footer className="mt-16 text-center text-gray-500 text-sm">
-          <p>Data provided by eBird. Happy birding!</p>
-        </footer>
+  <p>© {new Date().getFullYear()} BirdWatch Explorer. Explore, discover, and enjoy nature!</p>
+</footer>
+
       </div>
     </div>
   );
