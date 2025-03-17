@@ -1,5 +1,3 @@
-/* eslint-disable react/prop-types */
-
 import React, { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -16,17 +14,13 @@ import {
   Search,
 } from "lucide-react";
 
-// Custom bird marker icon (unused on map)
-
-
 // User location marker
 const userMarkerIcon = new L.Icon({
-  iconUrl: "https://cdn-icons-png.flaticon.com/512/149/149059.png", // New icon URL
+  iconUrl: "https://cdn-icons-png.flaticon.com/512/149/149059.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
 });
-
 
 const DEFAULT_LOCATION = { lat: 16.4971, lng: 80.4992 };
 
@@ -199,6 +193,48 @@ const MarkersMap = () => {
   const [error, setError] = useState(null);
   const [searchRadius, setSearchRadius] = useState(25);
   const [locationInitialized, setLocationInitialized] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [selectedSearchResult, setSelectedSearchResult] = useState(null);
+
+  // Function to fetch location data from OpenStreetMap
+  const searchLocation = async (query) => {
+    if (!query.trim()) return;
+    
+    setSearchLoading(true);
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json`
+      );
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch location data");
+      }
+      
+      const data = await response.json();
+      setSearchResults(data);
+    } catch (error) {
+      console.error("Error searching for location:", error);
+      setError("Location search failed. Please try again.");
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Function to handle location selection
+  const handleLocationSelect = (result) => {
+    const newLocation = {
+      lat: parseFloat(result.lat),
+      lng: parseFloat(result.lon)
+    };
+    
+    setCenter(newLocation);
+    setZoom(13);
+    setSelectedSearchResult(result.display_name);
+    setSearchResults([]);
+    fetchBirdData(newLocation.lat, newLocation.lng, searchRadius);
+  };
 
   // Function to fetch bird data and hotspots
   const fetchBirdData = async (lat, lng, radius) => {
@@ -315,6 +351,7 @@ const MarkersMap = () => {
           };
           setCenter(newLocation);
           setZoom(13);
+          setSelectedSearchResult(null);
           fetchBirdData(newLocation.lat, newLocation.lng, searchRadius);
         },
         (error) => {
@@ -325,6 +362,11 @@ const MarkersMap = () => {
         }
       );
     }
+  };
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    searchLocation(searchQuery);
   };
 
   return (
@@ -341,101 +383,85 @@ const MarkersMap = () => {
           </p>
         </header>
 
-        {/* Search Controls */}
-        <div className="max-w-4xl mx-auto mb-6 p-4 bg-white rounded-lg shadow-md border border-green-100">
-          <div className="flex flex-col md:flex-row gap-4 items-center">
-            <div className="w-full md:w-1/2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Search Radius (km)
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="range"
-                  min="5"
-                  max="50"
-                  value={searchRadius}
-                  onChange={(e) =>
-                    setSearchRadius(Number(e.target.value))
-                  }
-                  className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
-                />
-                <span className="text-green-800 font-medium">
-                  {searchRadius}
-                </span>
-              </div>
-            </div>
-
-            <button
-              className="w-full md:w-auto px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow transition-colors duration-200 flex items-center justify-center gap-2"
-              onClick={handleLocateMe}
-            >
-              <MapPin className="w-5 h-5" />
-              Find Birds Near Me
-            </button>
-          </div>
-        </div>
-
-        {/* Map Container */}
-        <div className="w-full max-w-4xl h-[500px] mx-auto rounded-xl overflow-hidden shadow-lg border-4 border-green-200 mb-8">
-          <MapContainer center={center} zoom={zoom} className="w-full h-full">
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            <ChangeView center={center} zoom={zoom} />
-
-            {/* Only display the user location marker */}
-            <Marker position={center} icon={userMarkerIcon}>
-              <Popup>
-                <div className="font-sans">
-                  <div className="font-semibold text-center">
-                    Your Location
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    Searching for birds within {searchRadius}km
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          </MapContainer>
-        </div>
-
-        {/* Search Radius Visualization */}
-        <div className="max-w-4xl mx-auto mb-8 flex items-center justify-center">
-          <div className="bg-white px-4 py-2 rounded-full shadow-sm border border-green-100 text-sm text-gray-600 flex items-center gap-2">
-            <Search className="w-4 h-4 text-green-600" />
-            Searching within {searchRadius}km radius of selected location
-          </div>
-        </div>
-
-        {/* Loading and Error States */}
-        {loading && (
-          <div className="flex items-center justify-center gap-2 text-green-600 mb-8">
-            <Loader2 className="w-6 h-6 animate-spin" />
-            <span>Searching for birds in your area...</span>
+   {/* Location Search */}
+<div className="max-w-4xl mx-auto mb-6 p-4 bg-white rounded-lg shadow-md border border-green-100">
+  <form onSubmit={handleSearchSubmit} className="mb-4">
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      Search for a Location
+    </label>
+    <div className="flex items-center gap-2">
+      <div className="relative flex-grow">
+        <input
+          type="text"
+          placeholder="City, State, Country or Address"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-400 outline-none"
+        />
+        {searchLoading && (
+          <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-green-600 animate-spin" />
+        )}
+        
+        {/* Search Results Dropdown */}
+        {searchResults.length > 0 && (
+          <div className="absolute z-50 mt-1 w-full bg-white rounded-md shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
+            {searchResults.map((result, index) => (
+              <button
+                key={`${result.place_id}-${index}`}
+                type="button"
+                onClick={() => handleLocationSelect(result)}
+                className="w-full text-left px-4 py-2 text-sm hover:bg-green-50 border-b border-gray-100 last:border-0"
+              >
+                {result.display_name}
+              </button>
+            ))}
           </div>
         )}
-        {error && (
-          <div className="max-w-4xl mx-auto text-red-500 mb-8 p-4 bg-red-50 rounded-lg border border-red-200">
-            {error}
-          </div>
-        )}
+      </div>
+      <button
+        type="submit"
+        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow transition-colors duration-200 flex items-center justify-center"
+      >
+        <Search className="w-5 h-5" />
+      </button>
+    </div>
+  </form>
+  
+  {/* Currently selected location */}
+  {selectedSearchResult && (
+    <div className="text-sm text-gray-600 bg-green-50 p-2 rounded-lg flex items-center gap-2">
+      <MapPin className="w-4 h-4 text-green-600 flex-shrink-0" />
+      <span className="truncate">Current location: {selectedSearchResult}</span>
+    </div>
+  )}
 
-        {/* Results Section */}
-        {!loading && !error && (
-          <div className="rounded-xl bg-white shadow-lg p-6 border border-green-100">
-            <BirdObservationsDisplay
-              hotspots={hotspots}
-              observations={birdData}
-            />
-          </div>
-        )}
-
-        {/* Footer */}
-        <footer className="mt-16 text-center text-gray-500 text-sm">
-  <p>© {new Date().getFullYear()} BirdWatch Explorer. Explore, discover, and enjoy nature!</p>
-</footer>
-
+  <div className="flex flex-col md:flex-row gap-4 items-center mt-4">
+    <div className="w-full md:w-1/2">
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Search Radius (km)
+      </label>
+      <div className="flex items-center gap-2">
+        <input
+          type="range"
+          min="5"
+          max="50"
+          value={searchRadius}
+          onChange={(e) => setSearchRadius(Number(e.target.value))}
+          className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+        />
+        <span className="text-green-800 font-medium">
+          {searchRadius}
+        </span>
       </div>
     </div>
-  );
-};
 
-export default MarkersMap;
+    <button
+      className="w-full md:w-auto px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow transition-colors duration-200 flex items-center justify-center gap-2"
+      onClick={handleLocateMe}
+      type="button"
+    >
+      <MapPin className="w-5 h-5" />
+      Find Birds Near Me
+    </button>
+  </div>
+</div>)}
